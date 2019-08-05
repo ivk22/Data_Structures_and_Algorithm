@@ -1,0 +1,604 @@
+// 2.6.5.cpp : This file contains the 'main' function. Program execution begins and ends there.
+//
+
+
+#include <iostream>
+#include <string>
+#include <queue>
+#include <ostream>
+#include <sstream>
+#include <iterator>
+#include <list>
+#include <algorithm>
+#include <vector>
+#include <random>
+
+using namespace std;
+
+// Splay Tree class, which supports Range Sum operation in O(Log n)
+
+template <class T>
+class Splay_Tree {
+	
+	T key, sm;
+	size_t size, height;
+	Splay_Tree* left;
+	Splay_Tree* right;
+	Splay_Tree* parent;
+
+	// key - the value of the node, sm - the sum of the all elements in the subtree,
+	// size - the number of the elements in the subtree,
+	// height - the length of the longest path from the root to the leaf of the subtree
+	// left - the pointer to the left child, right - the pointer to the right child,
+	// parent - the pointer to the parent (nullptr for the root)
+	
+	void Update_params() {
+		// a function that recalculates the values of parameters 
+		// when the structure of the tree changes
+		size = 1 + right->size + left->size;
+		height = 1 + max(right->height, left->height);
+		sm = key + right->sm + left->sm;
+	}
+
+
+	Splay_Tree* Find(T x) {
+		// an "ordinary" find operation
+		if (key == x || size == 0) {
+			return this;
+		}
+		if (x > key) {
+			right->Find(x);
+		}
+		else {
+			left->Find(x);
+		}
+	}
+
+	
+	Splay_Tree* LeftDescendant() {
+		// returns a pointer to the minimal element in the subtree
+		if (left->size == 0) {
+			return this;
+		}
+		return left->LeftDescendant();
+	}
+
+	Splay_Tree* RightAncestor() {
+		// returns a pointer to the minimal element, 
+		// which is greater than the current and located above
+		if (parent == nullptr) {
+			return nullptr;
+		}
+		if (parent->key > key) {
+			return parent;
+		}
+		return parent->RightAncestor();
+	}
+
+	Splay_Tree* Next() {
+		// returns a pointer to the next element in the subtree
+		if (size != 0) {
+			if (right->size != 0) {
+				return right->LeftDescendant();
+			}
+			else {
+				return RightAncestor();
+			}
+		}
+		else {
+			if (parent != nullptr) {
+				if (this == parent->right) {
+					return parent->Next();
+				}
+				else {
+					return parent;
+				}
+
+			}
+			else {
+				return nullptr;
+			}
+
+		}
+
+	}
+
+	Splay_Tree* Prev() {
+		// returns a pointer to the previous element in the subtree
+		if (!Is_Empty()) {
+			if (!(left->Is_Empty())) {
+				Splay_Tree* cur = left;
+				while (!(cur->right->Is_Empty())) {
+					cur = cur->right;
+				}
+				return cur;
+			}
+			else {
+				if (parent == nullptr) {
+					return nullptr;
+				}
+				if (parent->key < key) {
+					return parent;
+				}
+				Splay_Tree* cur = parent;
+				while (true) {
+					if (cur->parent == nullptr) {
+						return nullptr;
+					}
+					if (cur->parent->key > cur->key) {
+						cur = cur->parent;
+					}
+					else {
+						return cur->parent;
+					}
+				}
+			}
+
+		}
+		else {
+			if (parent == nullptr) {
+				return nullptr;
+			}
+			if (parent->right == this) {
+				return parent;
+			}
+			Splay_Tree* cur = parent;
+			while (true) {
+				if (cur->parent == nullptr) {
+					return nullptr;
+				}
+				if (cur->parent->key > cur->key) {
+					cur = cur->parent;
+				}
+				else {
+					return cur->parent;
+				}
+			}
+		}
+
+
+	}
+
+
+	int Case() {
+		// function to define a case (Zig-Zig, Zig-Zag or Zig)
+		if (parent == nullptr) {
+			return 0;
+		}
+		if (parent->parent == nullptr) {
+			if (parent->key > key) {
+				return -1;
+			}
+			return 1;
+		}
+		if (parent->parent->key > parent->key) {
+			if (parent->key > key) {
+				return -2;
+			}
+			return -3;
+		}
+
+		if (parent->parent->key < parent->key) {
+			if (parent->key < key) {
+				return 2;
+			}
+			return 3;
+		}
+	}
+
+
+	void Local_splay(int res) {
+		// function that performs a single Splay operation (depending on the Case)
+		if (res == 1) {
+
+			Splay_Tree* one = parent->left;
+			Splay_Tree* two = left;
+			Splay_Tree* three = right;
+			T old_key = key;
+
+			key = parent->key;
+			parent->key = old_key;
+			parent->right = three;
+
+			three->parent = parent;
+			parent->left = this;
+			right = two;
+			left = one;
+			one->parent = this;
+			Update_params();
+			parent->Update_params();
+		}
+		if (res == 2) {
+
+			Splay_Tree* Q = parent->parent;
+			Splay_Tree* P = parent;
+			Splay_Tree* one = Q->left;
+			Splay_Tree* two = P->left;
+			Splay_Tree* three = left;
+			Splay_Tree* four = right;
+			T old_key = key;
+
+			key = Q->key;
+			Q->key = old_key;
+			Q->right = four;
+			four->parent = Q;
+			Q->left = P;
+			P->right = three;
+			three->parent = P;
+			P->left = this;
+			left = one;
+			one->parent = this;
+			right = two;
+			two->parent = this;
+			Update_params();
+			P->Update_params();
+			Q->Update_params();
+		}
+
+		if (res == 3) {
+			Splay_Tree* Q = parent->parent;
+			Splay_Tree* P = parent;
+			Splay_Tree* one = Q->left;
+			Splay_Tree* two = P->right;
+			Splay_Tree* three = right;
+			Splay_Tree* four = left;
+			T old_key = key;
+			key = Q->key;
+			Q->key = old_key;
+			Q->left = this;
+			parent = Q;
+			left = one;
+			one->parent = this;
+			right = four;
+			P->left = three;
+			three->parent = P;
+			Update_params();
+			P->Update_params();
+			Q->Update_params();
+		}
+
+		if (res == -1) {
+			Splay_Tree* one = left;
+			Splay_Tree* two = right;
+			Splay_Tree* three = parent->right;
+			T old_key = key;
+
+			key = parent->key;
+			parent->key = old_key;
+
+			parent->left = one;
+			one->parent = parent;
+			parent->right = this;
+			left = two;
+			right = three;
+			three->parent = this;
+			Update_params();
+			parent->Update_params();
+		}
+		if (res == -2) {
+			Splay_Tree* P = parent;
+			Splay_Tree* Q = parent->parent;
+			Splay_Tree* one = left;
+			Splay_Tree* two = right;
+			Splay_Tree* three = P->right;
+			Splay_Tree* four = Q->right;
+			T old_key = key;
+
+			key = Q->key;
+			Q->key = old_key;
+			Q->left = one;
+			one->parent = Q;
+			Q->right = P;
+			P->left = two;
+			two->parent = P;
+			P->right = this;
+			left = three;
+			three->parent = this;
+			right = four;
+			four->parent = this;
+			Update_params();
+			P->Update_params();
+			Q->Update_params();
+		}
+		if (res == -3) {
+
+			Splay_Tree* Q = parent->parent;
+			Splay_Tree* P = parent;
+			Splay_Tree* one = Q->right;
+			Splay_Tree* two = P->left;
+			Splay_Tree* three = left;
+			Splay_Tree* four = right;
+			T old_key = key;
+
+			key = Q->key;
+			Q->key = old_key;
+
+			P->right = three;
+			three->parent = P;
+
+			Q->right = this;
+			parent = Q;
+
+			left = four;
+			right = one;
+			one->parent = this;
+			Update_params();
+			P->Update_params();
+			Q->Update_params();
+
+		}
+
+	}
+
+	void Splay() {
+		// function that performs the whole Splay operation
+		if (Is_Empty()) {
+			if (parent != nullptr) {
+				int res = parent->Case();
+
+				if (res != 0) {
+					T val = parent->key;
+					parent->Local_splay(res);
+					Splay_Tree* cur = parent;
+					while (cur->key != val) {
+						cur = cur->parent;
+					}
+					cur->Splay();
+				}
+			}
+		}
+		else {
+			int res = Case();
+			if (res != 0) {
+				T val = key;
+				Local_splay(res);
+				if (parent->key != val) {
+					parent->parent->Splay();
+				}
+				else {
+					parent->Splay();
+				}
+			}
+		}
+	}
+
+
+public:
+
+	Splay_Tree() {
+		// default constructor
+		parent = nullptr;
+		size = 0;
+		height = 0;
+		key = 0;
+		sm = 0;
+		left = nullptr;
+		right = nullptr;
+
+	}
+
+	bool Is_Empty() {
+		if (size == 0) {
+			return 1;
+		}
+		return 0;
+	}
+
+	void ST_Add(T x) {
+		// Splay tree Add operation
+		if (size == 0) {
+			key = x;
+			sm = key;
+			size = 1;
+			height = 1;
+			left = new Splay_Tree();
+			left->parent = this;
+			right = new Splay_Tree();
+			right->parent = this;
+			if (parent != nullptr) {
+				parent->Update_params();
+			}
+			Splay();
+			return;
+		}
+		if (key == x) {
+			return;
+		}
+		if (x < key) {
+			left->ST_Add(x);
+		}
+		else {
+			right->ST_Add(x);
+
+		}
+
+
+	}
+
+	bool ST_Find(T x) {
+		// Splay tree Find operation
+		Splay_Tree* res = Find(x);
+		bool f = (!(res->Is_Empty()));
+		res->Splay();
+		return f;
+	}
+
+	void ST_Delete(T x) {
+		// Splay tree Delete operation
+		if (!Is_Empty()) {
+			bool res = ST_Find(x);
+			if (res) {
+				if (!(right->Is_Empty())) {
+					Splay_Tree* ptr = Next();
+
+					right->parent = nullptr;
+					ptr->Splay();
+
+					Splay_Tree* old_right = right;
+
+					delete old_right->left;
+
+					key = right->key;
+
+					right = right->right;
+					right->parent = this;
+					delete old_right;
+					Update_params();
+				}
+				else {
+					delete right;
+					if (left->Is_Empty()) {
+						delete left;
+						size = 0;
+						height = 0;
+						sm = 0;
+						key = 0;
+						left = nullptr;
+						right = nullptr;
+						return;
+					}
+					Splay_Tree* old_left = left;
+
+					key = left->key;
+
+					right = left->right;
+					right->parent = this;
+					left = left->left;
+					left->parent = this;
+
+					delete old_left;
+					Update_params();
+
+				}
+
+			}
+		}
+	}
+
+	T Range_sum(T mn, T mx) {
+		// Sums all elements in the range [mn,mx] in O(log n)
+		if (Is_Empty()) {
+			return 0;
+		}
+		T val = 0;
+
+		ST_Find(mn);
+
+		if (key > mx) {
+			return val;
+		}
+
+		if (key < mn) {
+			if (right->Is_Empty()) {
+				return val;
+			}
+			ST_Find(Next()->key);
+
+			if (key > mx) {
+				return val;
+			}
+
+		}
+
+		val = key;
+		if (right->Is_Empty()) {
+			return val;
+		}
+
+		right->parent = nullptr;
+
+		right->ST_Find(mx);
+
+		if (right->key > mx) {
+			if (right->left->Is_Empty()) {
+				right->parent = this;
+				return val;
+			}
+			right->Prev()->Splay();
+		}
+
+		val += right->key + right->left->sm;
+		right->parent = this;
+		return val;
+
+	}
+
+	size_t Get_Size() {
+		return size;
+	}
+
+	size_t Get_Height() {
+		return height;
+	}
+
+
+	void InOrder_Print() {
+		// Prints elements of the tree in InOrder
+		if (left != nullptr) {
+			left->InOrder_Print();
+		}
+		if (size != 0) {
+			cout << key << " ";
+		}
+		if (right != nullptr) {
+			right->InOrder_Print();
+		}
+		
+	}
+
+	void PreOrder_Print() {
+		// Prints elements of the tree in PreOrder
+		if (size != 0) {
+			cout << key << " ";
+		}
+
+		if (left != nullptr) {
+			left->PreOrder_Print();
+		}
+
+		if (right != nullptr) {
+			right->PreOrder_Print();
+		}
+		
+	}
+
+	void PostOrder_Print() {
+		// Prints elements of the tree in PostOrder
+		if (left != nullptr) {
+			left->PostOrder_Print();
+		}
+
+		if (right != nullptr) {
+			right->PostOrder_Print();
+		}
+
+		if (size != 0) {
+			cout << key << " ";
+		}
+		
+	}
+
+};
+
+
+int main() {
+	Splay_Tree<int> ST;
+
+	ST.ST_Add(-10);
+	ST.ST_Add(10);
+
+	for (size_t i = 1; i <= 10; ++i) {
+		ST.ST_Add(rand());
+	}
+
+	ST.InOrder_Print();
+	cout << endl;
+
+	ST.ST_Delete(-10);
+	ST.ST_Delete(10);
+
+	ST.InOrder_Print();
+	cout << endl;
+	cout << ST.Range_sum(-10,1000);
+
+}
