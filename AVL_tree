@@ -128,7 +128,7 @@ class AVL_tree {
 
 
 	void Rebalance() {
-		// a function that performs a single Rebalance operation
+		// a function that performs the whole Rebalance operation
 		if (left->height > right->height + 1) {
 			RebalanceLeft();
 		}
